@@ -1,0 +1,32 @@
+# Rusha system manifest — checked into the repo root.
+# Rusha reads this file on every deploy to understand what to build and where.
+#
+# metadata is injected by Rusha at provisioning time — do not edit manually.
+apiVersion: rusha.io/v1
+kind: System
+metadata:
+  name: "{{ .SystemAlias }}"
+  project: "{{ .ProjectAlias }}"
+  org: "{{ .OrgAlias }}"
+spec:
+  template: react-fastapi-postgres
+  services:
+    - name: ui
+      type: static
+      internetFacing: true
+      vcs:
+        buildCommand: "npm run build"
+        buildDir: "ui/dist"
+
+    - name: api
+      type: server
+      port: 8000
+      internetFacing: true
+      vcs:
+        dockerfile: api/Dockerfile
+
+    - name: db
+      type: stateful
+      port: 5432
+      image: postgres:16
+      storage: 20Gi

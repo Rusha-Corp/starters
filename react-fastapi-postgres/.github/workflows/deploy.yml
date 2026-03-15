@@ -1,0 +1,43 @@
+# Rusha auto-deploy workflow.
+# Rusha installs this webhook when provisioning the repo.
+# Push to any branch → Rusha deploys to the matching environment.
+#
+# Branch → environment mapping (configured in rusha.yml):
+#   dev     → dev
+#   staging → staging
+#   main    → production
+
+name: Deploy via Rusha
+
+on:
+  push:
+    branches: [dev, staging, main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Rusha deploy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.ref.replace('refs/heads/', '');
+            const envMap = { dev: 'dev', staging: 'staging', main: 'production' };
+            const environment = envMap[branch] ?? 'dev';
+
+            await fetch(`${process.env.RUSHA_WEBHOOK_URL}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Rusha-Signature': process.env.RUSHA_WEBHOOK_SECRET,
+              },
+              body: JSON.stringify({
+                ref: context.ref,
+                sha: context.sha,
+                repository: context.repo,
+                environment,
+              }),
+            });
+        env:
+          RUSHA_WEBHOOK_URL: ${{ secrets.RUSHA_WEBHOOK_URL }}
+          RUSHA_WEBHOOK_SECRET: ${{ secrets.RUSHA_WEBHOOK_SECRET }}

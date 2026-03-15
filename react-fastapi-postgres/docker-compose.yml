@@ -1,0 +1,60 @@
+# Local development — mirrors the production topology exactly.
+# Run: docker compose up --build
+#
+# Services:
+#   ui   → http://localhost:3000  (Vite dev server with HMR)
+#   api  → http://localhost:8000  (FastAPI with auto-reload)
+#   db   → localhost:5432         (PostgreSQL 16)
+
+services:
+  ui:
+    build:
+      context: ./ui
+      target: build          # stop at the Node build stage — Vite dev server below
+    image: react-fastapi-postgres-ui:dev
+    working_dir: /app
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ui:/app
+      - /app/node_modules      # preserve container node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ./api
+    image: react-fastapi-postgres-api:dev
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+    environment:
+      DATABASE_URL: postgresql://rusha:rusha@db:5432/rusha
+      SECRET_KEY: dev-secret-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: rusha
+      POSTGRES_PASSWORD: rusha
+      POSTGRES_DB: rusha
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rusha"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
