@@ -2,6 +2,14 @@
 
 Rusha starter template — React 18 + FastAPI + PostgreSQL 16.
 
+## Features
+
+- **Production-ready API** with SQLAlchemy ORM and Alembic migrations
+- **Observability** — Structured logging (loguru) and Prometheus metrics (`/metrics`)
+- **Health checks** — Liveness (`/health/live`) and readiness (`/health/ready`) probes
+- **Testing** — pytest (API) and Vitest (UI) with MSW mocking
+- **Type-safe** — Pydantic schemas for request/validation
+
 ## Local dev
 
 ```bash
@@ -15,6 +23,25 @@ docker compose up --build
 | API docs | http://localhost:8000/docs |
 | DB (PostgreSQL) | localhost:5432 |
 
+## Testing
+
+### API Tests
+
+```bash
+cd api
+pip install -r requirements.txt
+pytest -v
+```
+
+### UI Tests
+
+```bash
+cd ui
+npm install
+npm test
+npm run test:coverage
+```
+
 ## Project structure
 
 ```
@@ -23,13 +50,23 @@ docker compose up --build
 ├── docker-compose.yml  Local dev environment
 ├── ui/                 React 18 + Vite frontend
 │   ├── Dockerfile
+│   ├── vitest.config.ts
+│   ├── package.json
 │   └── src/
 │       ├── main.tsx
-│       └── App.tsx     Calls /health and renders response
+│       ├── App.tsx     Calls /health and renders response
+│       ├── __tests__/  Component tests
+│       └── mocks/      MSW handlers for API mocking
 └── api/                FastAPI backend
     ├── Dockerfile
-    ├── requirements.txt
-    └── main.py         /health + example /api/items CRUD
+    ├── main.py         /health, /metrics, /api/items CRUD
+    ├── config.py       Settings loaded from environment
+    ├── database.py     SQLAlchemy connection
+    ├── models.py       ORM models
+    ├── schemas.py      Pydantic validation schemas
+    ├── alembic/        Database migrations
+    ├── tests/          pytest unit tests
+    └── requirements.txt
 ```
 
 ## Deploying
@@ -38,9 +75,33 @@ Push to `dev`, `staging`, or `main` — Rusha detects the branch and deploys to 
 
 ## Environment variables
 
-| Variable | Service | Description |
+### API (`api/.env`)
+
+| Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_URL` | ui | Backend API base URL (default: `/api`) |
-| `DATABASE_URL` | api | PostgreSQL connection string |
-| `SECRET_KEY` | api | App secret — change in production |
-| `CORS_ORIGINS` | api | Comma-separated allowed origins |
+| `DATABASE_URL` | `postgresql://rusha:rusha@db:5432/rusha` | PostgreSQL connection string |
+| `SECRET_KEY` | `change-me-in-production` | App secret — change in production |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Comma-separated allowed origins |
+| `LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| `LOG_FORMAT` | `text` | Log format (text or json) |
+| `METRICS_ENABLED` | `true` | Enable `/metrics` endpoint |
+
+### UI (`ui/.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_API_URL` | `/api` | Backend API base URL |
+| `VITE_APP_ENV` | `development` | App environment |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health/live` | Liveness probe |
+| GET | `/health/ready` | Readiness probe (checks DB) |
+| GET | `/health` | Combined health |
+| GET | `/metrics` | Prometheus metrics |
+| GET | `/api/items` | List all items |
+| POST | `/api/items` | Create item |
+| GET | `/api/items/{id}` | Get item by ID |
+| DELETE | `/api/items/{id}` | Delete item |

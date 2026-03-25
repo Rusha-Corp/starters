@@ -22,6 +22,11 @@ spec:
       type: server
       port: 8000
       internetFacing: true
+      healthCheck:
+        path: /health/live
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
       vcs:
         dockerfile: api/Dockerfile
 
@@ -30,3 +35,15 @@ spec:
       port: 5432
       image: postgres:16
       storage: 20Gi
+      healthCheck:
+        command: ["pg_isready", "-U", "rusha"]
+        intervalSeconds: 10
+        timeoutSeconds: 5
+
+  environment:
+    - key: LOG_LEVEL
+      value: INFO
+    - key: LOG_FORMAT
+      value: text
+    - key: METRICS_ENABLED
+      value: "true"
