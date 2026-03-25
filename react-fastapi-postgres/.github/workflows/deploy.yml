@@ -1,11 +1,16 @@
 # Rusha auto-deploy workflow.
 # Rusha installs this webhook when provisioning the repo.
-# Push to any branch → Rusha deploys to the matching environment.
+# Push to any branch → Rusha builds images and deploys to the matching environment.
 #
 # Branch → environment mapping (configured in rusha.yml):
 #   dev     → dev
 #   staging → staging
 #   main    → production
+#
+# This workflow:
+#   1. Builds API Docker image → ghcr.io/{owner}/{repo}/api:{sha}
+#   2. Builds UI Docker image  → ghcr.io/{owner}/{repo}/ui:{sha}
+#   3. Triggers Rusha deploy with image refs
 
 name: Deploy via Rusha
 
@@ -13,10 +18,60 @@ on:
   push:
     branches: [dev, staging, main]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ─────────────────────────────────────────────────────────────
+      # Build API image
+      # ─────────────────────────────────────────────────────────────
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          push: true
+          tags: ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      # ─────────────────────────────────────────────────────────────
+      # Build UI image
+      # ─────────────────────────────────────────────────────────────
+      - name: Build and push UI image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ui
+          push: true
+          tags: ghcr.io/${{ github.repository }}/ui:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=ui
+          cache-to: type=gha,mode=max,scope=ui
+
+      # ─────────────────────────────────────────────────────────────
+      # Trigger Rusha deploy with image refs
+      # ─────────────────────────────────────────────────────────────
       - name: Trigger Rusha deploy
         uses: actions/github-script@v7
         with:
@@ -24,6 +79,7 @@ jobs:
             const branch = context.ref.replace('refs/heads/', '');
             const envMap = { dev: 'dev', staging: 'staging', main: 'production' };
             const environment = envMap[branch] ?? 'dev';
+            const repoName = context.repo.repo;
 
             await fetch(`${process.env.RUSHA_WEBHOOK_URL}`, {
               method: 'POST',
@@ -32,10 +88,13 @@ jobs:
                 'X-Rusha-Signature': process.env.RUSHA_WEBHOOK_SECRET,
               },
               body: JSON.stringify({
+                repoName,
                 ref: context.ref,
                 sha: context.sha,
-                repository: context.repo,
-                environment,
+                images: {
+                  api: `ghcr.io/${context.repo.owner}/${repoName}/api:${context.sha}`,
+                  ui: `ghcr.io/${context.repo.owner}/${repoName}/ui:${context.sha}`,
+                },
               }),
             });
         env:
