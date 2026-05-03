@@ -1,6 +1,5 @@
 # Multi-stage build: python-builder → production
-# Production image is based on Google's distroless Python image
-# for minimal attack surface and reduced size.
+# Production stage uses a slim Python image for shell access and health checks.
 
 # ─── Build Stage ─────────────────────────────────────────────────────────────
 FROM python:3.12-slim-bookworm AS builder
@@ -18,25 +17,24 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ─── Production Stage ────────────────────────────────────────────────────────
-FROM gcr.io/distroless/python3-debian12:nonroot
+FROM python:3.12-slim-bookworm
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown -R nonroot:nonroot /app
-
-# Set non-root user
-USER nonroot:nonroot
+# Create non-root user and app directory
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
+    && mkdir -p /app/logs \
+    && chown -R appuser:appuser /app
 
 WORKDIR /app
 
 # Copy Python dependencies from builder
-COPY --from=builder /root/.local /home/nonroot/.local
-ENV PATH=/home/nonroot/.local/bin:$PATH
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
 
 # Copy application code
-COPY --chown=nonroot:nonroot . .
+COPY --chown=appuser:appuser . .
 
-# Create log directory (owned by nonroot)
-RUN mkdir -p /app/logs
+# Set non-root user
+USER appuser
 
 # Health check - use liveness endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
