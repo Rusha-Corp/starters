@@ -29,6 +29,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Lowercase repository name for GHCR
+        id: repo
+        run: echo "lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -47,7 +51,7 @@ jobs:
         with:
           context: ./api
           push: true
-          tags: ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          tags: ghcr.io/${{ steps.repo.outputs.lower }}/api:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -62,7 +66,7 @@ jobs:
         with:
           context: ./ui
           push: true
-          tags: ghcr.io/${{ github.repository }}/ui:${{ github.sha }}
+          tags: ghcr.io/${{ steps.repo.outputs.lower }}/ui:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -80,6 +84,7 @@ jobs:
             const envMap = { dev: 'dev', staging: 'staging', main: 'production' };
             const environment = envMap[branch] ?? 'dev';
             const repoName = context.repo.repo;
+            const repoLower = `${{ steps.repo.outputs.lower }}`;
 
             await fetch(`${process.env.RUSHA_WEBHOOK_URL}`, {
               method: 'POST',
@@ -92,8 +97,8 @@ jobs:
                 ref: context.ref,
                 sha: context.sha,
                 images: {
-                  api: `ghcr.io/${context.repo.owner}/${repoName}/api:${context.sha}`,
-                  ui: `ghcr.io/${context.repo.owner}/${repoName}/ui:${context.sha}`,
+                  api: `ghcr.io/${repoLower}/api:${context.sha}`,
+                  ui: `ghcr.io/${repoLower}/ui:${context.sha}`,
                 },
               }),
             });

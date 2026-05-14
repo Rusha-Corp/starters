@@ -5,7 +5,7 @@ SQLAlchemy engine with connection pooling for production use.
 from contextlib import contextmanager
 from typing import Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 from sqlalchemy.pool import QueuePool
 
@@ -68,7 +68,7 @@ def check_db_connection() -> bool:
     """Check if database is reachable."""
     try:
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         return True
     except Exception:
         return False
