@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, beforeAll, afterAll, afterEach } from 'vitest';
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -16,10 +16,12 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock window.location
+// Mock window.location (Vitest jsdom doesn't fully implement it)
 const mockLocation = new URL('http://localhost:3000');
-delete (window as unknown as { location?: Location }).location;
-window.location = mockLocation as unknown as Location;
+Object.defineProperty(window, 'location', {
+  writable: true,
+  value: mockLocation,
+});
 
 // Mock console errors/warnings in tests (optional, for cleaner output)
 const originalError = console.error;
