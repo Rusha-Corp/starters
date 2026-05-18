@@ -15,6 +15,7 @@ spec:
       type: static
       internetFacing: true
       vcs:
+        baseImage: node:20-alpine
         buildCommand: "npm run build"
         buildDir: "ui/dist"
 

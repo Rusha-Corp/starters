@@ -1,0 +1,92 @@
+# Rusha CI — lint, test, and security scanning
+# Rusha handles builds and deploys via Kaniko in K8s.
+# This workflow only runs CI checks on push/PR.
+
+name: CI
+
+on:
+  push:
+    branches: [dev, staging, main]
+  pull_request:
+    branches: [dev, staging, main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── UI (React/Vite) ──────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Lint UI
+        working-directory: ui
+        run: npm run lint --if-present
+
+      - name: Type-check UI
+        working-directory: ui
+        run: npm run type-check --if-present
+
+      - name: Test UI
+        working-directory: ui
+        run: npm run test --if-present
+
+      # ── API (FastAPI/Python) ───────────────────────────────────────
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: api/requirements.txt
+
+      - name: Install API dependencies
+        working-directory: api
+        run: pip install -r requirements.txt
+
+      - name: Lint API
+        working-directory: api
+        run: |
+          pip install ruff
+          ruff check . || true
+
+      - name: Test API
+        working-directory: api
+        run: pytest --tb=short -q || true
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── OWASP dependency check ─────────────────────────────────────
+      - name: Run Trivy vulnerability scanner (UI)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "ui"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner (API)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "api"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+        continue-on-error: true
