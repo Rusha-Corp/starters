@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, staging, main]
+  pull_request:
+    branches: [dev, staging, main]
+
+jobs:
+  # ─── Dagster Tests ────────────────────────────────────────────────────────
+  dagster-test:
+    name: Dagster Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dagster
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: dagster/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov bandit
+
+      - name: Run tests with coverage
+        run: pytest --cov=. --cov-report=term-missing --cov-report=xml --tb=short -q || true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dagster-coverage
+          path: dagster/coverage.xml
+
+      - name: Run Bandit security linter
+        run: bandit -r . -f json -o bandit-report.json || true
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dagster-bandit-report
+          path: dagster/bandit-report.json
+
+  # ─── Orchestrator Tests ───────────────────────────────────────────────────
+  orchestrator-test:
+    name: Orchestrator Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: orchestrator/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov bandit
+
+      - name: Run tests with coverage
+        run: pytest --cov=. --cov-report=term-missing --cov-report=xml --tb=short -q || true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-coverage
+          path: orchestrator/coverage.xml
+
+      - name: Run Bandit security linter
+        run: bandit -r . -f json -o bandit-report.json || true
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-bandit-report
+          path: orchestrator/bandit-report.json
+
+  # ─── Security Scan ────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install security tools
+        run: |
+          pip install bandit safety
+
+      - name: Run Bandit security linter on all Python files
+        run: bandit -r . -f json -o bandit-report.json || true
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-bandit-report
+          path: bandit-report.json
+
+      - name: Run Safety dependency check on all requirements files
+        run: |
+          find . -name "requirements.txt" -exec safety check -r {} \; || true
