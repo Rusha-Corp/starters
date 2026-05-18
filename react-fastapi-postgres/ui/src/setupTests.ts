@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { vi, beforeAll, afterAll, afterEach } from 'vitest';
+import { server } from './mocks/server';
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -23,38 +24,18 @@ Object.defineProperty(window, 'location', {
   value: mockLocation,
 });
 
-// Mock console errors/warnings in tests (optional, for cleaner output)
-const originalError = console.error;
-const originalWarn = console.warn;
-
+// Start MSW server before all tests
 beforeAll(() => {
-  console.error = (...args: unknown[]) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes('Warning: ReactDOM.render')
-    ) {
-      return;
-    }
-    originalError.call(console, ...args);
-  };
-
-  console.warn = (...args: unknown[]) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].includes('Warning:')
-    ) {
-      return;
-    }
-    originalWarn.call(console, ...args);
-  };
+  server.listen({ onUnhandledRequest: 'bypass' });
 });
 
-afterAll(() => {
-  console.error = originalError;
-  console.warn = originalWarn;
-});
-
-// Cleanup after each test
+// Reset handlers after each test
 afterEach(() => {
+  server.resetHandlers();
   vi.clearAllMocks();
+});
+
+// Clean up after all tests
+afterAll(() => {
+  server.close();
 });

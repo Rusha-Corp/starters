@@ -6,6 +6,9 @@ Production-ready with:
   - Structured logging (loguru)
   - Prometheus metrics
   - Health checks (/health/live, /health/ready)
+  - Rate limiting (slowapi)
+  - Security headers middleware
+  - Input sanitization
   - Alembic migrations
 
 Routes:
@@ -17,12 +20,17 @@ Routes:
   GET  /docs           → OpenAPI documentation
 """
 import time
+import warnings
 from contextlib import asynccontextmanager
 
+import bleach
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, Histogram, generate_latest
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from loguru import logger
 
@@ -33,6 +41,15 @@ from schemas import ItemCreate, ItemResponse, ItemListResponse
 
 # Load settings
 settings = get_settings()
+
+# Warn if default SECRET_KEY is used in production
+if settings.secret_key == "change-me-in-production":
+    warnings.warn(
+        "SECURITY WARNING: Using default SECRET_KEY. "
+        "Set SECRET_KEY environment variable to a strong random value in production. "
+        "Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'",
+        stacklevel=2,
+    )
 
 # Configure logging
 logger.remove()
@@ -50,6 +67,9 @@ logger.add(
     format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
 )
 
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 # Prometheus metrics
 REQUEST_COUNT = Counter(
     "http_requests_total",
@@ -62,26 +82,49 @@ REQUEST_LATENCY = Histogram(
     ["method", "endpoint"],
 )
 
+# HTML sanitization settings — strip all HTML tags from user input
+BLEACH_ALLOWED_TAGS = []
+BLEACH_ALLOWED_ATTRIBUTES = {}
+
+
+def sanitize_input(text: str) -> str:
+    """Sanitize user input by stripping HTML tags and harmful content."""
+    if not text:
+        return text
+    return bleach.clean(
+        text,
+        tags=BLEACH_ALLOWED_TAGS,
+        attributes=BLEACH_ALLOWED_ATTRIBUTES,
+        strip=True,
+    )
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Application lifespan - startup and shutdown handlers."""
     # Startup
     logger.info("Starting application...")
+
+    if settings.secret_key == "change-me-in-production":
+        logger.warning(
+            "SECURITY: Using default SECRET_KEY. "
+            "Set SECRET_KEY environment variable for production!"
+        )
+
     try:
         init_db()
         logger.info("Database tables initialized")
     except Exception as e:
         logger.warning(f"Could not initialize DB tables (may already exist): {e}")
-    
+
     # Verify DB connection
     if check_db_connection():
         logger.info("Database connection verified")
     else:
         logger.error("Database connection failed!")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down application...")
     engine.dispose()
@@ -96,14 +139,32 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware
+# Rate limit error handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS middleware — restrict methods to only what's needed
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
 )
+
+
+# Security headers middleware (OWASP A05: Security Misconfiguration)
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "0"  # Modern approach: disable browser XSS filter
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 # Request metrics middleware
@@ -113,7 +174,7 @@ async def metrics_middleware(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     duration = time.time() - start_time
-    
+
     REQUEST_COUNT.labels(
         method=request.method,
         endpoint=request.url.path,
@@ -123,7 +184,7 @@ async def metrics_middleware(request: Request, call_next):
         method=request.method,
         endpoint=request.url.path,
     ).observe(duration)
-    
+
     return response
 
 
@@ -159,8 +220,9 @@ def health():
 # ─── Metrics ──────────────────────────────────────────────────────────────────
 
 @app.get("/metrics", tags=["ops"])
-def metrics():
-    """Prometheus metrics endpoint."""
+@limiter.limit("10/minute")
+def metrics(request: Request):
+    """Prometheus metrics endpoint (rate limited)."""
     if not settings.metrics_enabled:
         raise HTTPException(status_code=404, detail="Metrics disabled")
     return PlainTextResponse(generate_latest())
@@ -169,16 +231,20 @@ def metrics():
 # ─── Items (example resource) ─────────────────────────────────────────────────
 
 @app.get("/api/items", response_model=ItemListResponse, tags=["items"])
-def list_items(db: Session = Depends(get_db)):
+@limiter.limit("100/minute")
+def list_items(request: Request, db: Session = Depends(get_db)):
     """List all items."""
     items = db.query(Item).order_by(Item.created_at.desc()).all()
     return ItemListResponse(items=items, total=len(items))
 
 
 @app.post("/api/items", response_model=ItemResponse, status_code=201, tags=["items"])
-def create_item(item: ItemCreate, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def create_item(request: Request, item: ItemCreate, db: Session = Depends(get_db)):
     """Create a new item."""
-    db_item = Item(name=item.name, description=item.description)
+    sanitized_name = sanitize_input(item.name)
+    sanitized_description = sanitize_input(item.description)
+    db_item = Item(name=sanitized_name, description=sanitized_description)
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -187,7 +253,8 @@ def create_item(item: ItemCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/items/{item_id}", response_model=ItemResponse, tags=["items"])
-def get_item(item_id: int, db: Session = Depends(get_db)):
+@limiter.limit("100/minute")
+def get_item(request: Request, item_id: int, db: Session = Depends(get_db)):
     """Get a single item by ID."""
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
@@ -196,7 +263,8 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 
 
 @app.delete("/api/items/{item_id}", status_code=204, tags=["items"])
-def delete_item(item_id: int, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def delete_item(request: Request, item_id: int, db: Session = Depends(get_db)):
     """Delete an item."""
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:

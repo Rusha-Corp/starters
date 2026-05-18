@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 from sqlalchemy.pool import QueuePool
 
-from .config import get_settings
+from config import get_settings
 
 settings = get_settings()
 

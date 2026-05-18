@@ -5,17 +5,18 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# Set test environment before importing app
-os.environ["DATABASE_URL"] = "postgresql://rusha:rusha@localhost:5432/rusha_test"
+# Set test environment before importing app modules
+os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["LOG_LEVEL"] = "ERROR"
 os.environ["LOG_FORMAT"] = "text"
-os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
+os.environ["METRICS_ENABLED"] = "true"
+os.environ["CORS_ORIGINS"] = '["http://localhost:3000"]'
 
 from main import app
 from database import Base, get_db
 
-
-# Test database - use SQLite for tests
+# SQLite test database
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(
     SQLALCHEMY_TEST_DATABASE_URL,

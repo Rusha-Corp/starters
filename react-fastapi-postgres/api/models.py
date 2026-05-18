@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import Integer, String, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from database import Base
 
 
 class Item(Base):

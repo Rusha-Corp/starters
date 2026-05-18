@@ -26,8 +26,8 @@ let items: Item[] = [
 let nextId = 2;
 
 export const handlers = [
-  // Health endpoints
-  http.get('/health', async () => {
+  // Health endpoints - match both /health and /api/health (baseURL prefix)
+  http.get('*/health', async () => {
     await delay(100);
     return HttpResponse.json<HealthResponse>({
       status: 'ok',
@@ -36,7 +36,7 @@ export const handlers = [
     });
   }),
 
-  http.get('/health/live', async () => {
+  http.get('*/health/live', async () => {
     await delay(50);
     return HttpResponse.json<HealthResponse>({
       status: 'ok',
@@ -44,7 +44,7 @@ export const handlers = [
     });
   }),
 
-  http.get('/health/ready', async () => {
+  http.get('*/health/ready', async () => {
     await delay(100);
     return HttpResponse.json<HealthResponse>({
       status: 'ready',

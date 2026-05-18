@@ -1,5 +1,6 @@
 import { useEffect, useState, Component, ReactNode } from 'react';
 import axios from 'axios';
+import DOMPurify from 'dompurify';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? '/api',
@@ -9,6 +10,15 @@ interface HealthResponse {
   status: string;
   version: string;
   db?: string;
+}
+
+/**
+ * Sanitize error messages to prevent XSS in error display.
+ * React already escapes JSX expressions, but we add an extra
+ * layer of safety for dynamically constructed error strings.
+ */
+function sanitizeErrorMessage(message: string): string {
+  return DOMPurify.sanitize(message, { ALLOWED_TAGS: [] });
 }
 
 /**
@@ -40,7 +50,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         this.props.fallback || (
           <div style={{ color: 'red', padding: '2rem' }}>
             <h2>Something went wrong</h2>
-            <p>{this.state.error?.message}</p>
+            <p>{this.state.error?.message || 'An unexpected error occurred'}</p>
             <button onClick={() => window.location.reload()}>Reload</button>
           </div>
         )
@@ -58,7 +68,7 @@ export default function App() {
   const checkHealth = () => {
     setLoading(true);
     setError(null);
-    
+
     api
       .get<HealthResponse>('/health')
       .then((res) => {
@@ -67,9 +77,9 @@ export default function App() {
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : 'Unknown error';
-        setError(message);
+        setError(sanitizeErrorMessage(message));
         setLoading(false);
-        
+
         // Retry after 5 seconds on failure
         setTimeout(checkHealth, 5000);
       });
@@ -91,7 +101,7 @@ export default function App() {
           {error && (
             <p style={{ color: 'red' }}>
               Could not reach API: {error}
-              <button 
+              <button
                 onClick={checkHealth}
                 style={{ marginLeft: '1rem', cursor: 'pointer' }}
               >
