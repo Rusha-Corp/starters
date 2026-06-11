@@ -1,0 +1,51 @@
+# Rusha system manifest — checked into the repo root.
+# Rusha reads this file on every deploy to understand what to build and where.
+#
+# metadata is injected by Rusha at provisioning time — do not edit manually.
+apiVersion: rusha.io/v1
+kind: System
+metadata:
+  name: "{{ .SystemAlias }}"
+  project: "{{ .ProjectAlias }}"
+  org: "{{ .OrgAlias }}"
+spec:
+  template: react-go-fiber-postgres
+  services:
+    - name: ui
+      type: static
+      internetFacing: true
+      vcs:
+        baseImage: node:20-alpine
+        buildCommand: "npm run build"
+        buildDir: "ui/dist"
+
+    - name: api
+      type: server
+      port: 8080
+      internetFacing: true
+      vcs:
+        dockerfile: api/Dockerfile
+
+    - name: db
+      type: stateful
+      shared: true
+      port: 5432
+      image: postgres:16
+      storage: 20Gi
+      healthCheck:
+        command: ["pg_isready", "-U", "rusha"]
+        intervalSeconds: 10
+        timeoutSeconds: 5
+
+    - name: cache
+      type: stateful
+      shared: true
+      port: 6379
+      image: redis:7-alpine
+      storage: 1Gi
+
+  environment:
+    - key: LOG_LEVEL
+      value: INFO
+    - key: LOG_FORMAT
+      value: text

@@ -1,0 +1,29 @@
+<script>
+  let { children } = $props();
+</script>
+
+<div class="app">
+  <main>
+    {@render children()}
+  </main>
+</div>
+
+<style>
+  :global(*) {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  .app {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+      Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    min-height: 100vh;
+  }
+
+  main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+</style>

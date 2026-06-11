@@ -1,0 +1,50 @@
+# Local development — mirrors the production topology exactly.
+# Run: docker compose up --build
+#
+# Services:
+#   app → http://localhost:3000  (Remix fullstack)
+#   db  → localhost:5432         (PostgreSQL 16)
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: remix-fullstack-postgres-app:dev
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://rusha:rusha@db:5432/rusha
+      - SECRET_KEY=dev-secret-change-in-production
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=text
+    env_file:
+      - .env.example
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=rusha
+      - POSTGRES_PASSWORD=rusha
+      - POSTGRES_DB=rusha
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rusha"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:

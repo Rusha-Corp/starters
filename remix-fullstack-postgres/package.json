@@ -1,0 +1,28 @@
+{
+  "name": "remix-fullstack-postgres",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "remix-serve ./build",
+    "build": "remix build",
+    "start": "remix-serve ./build"
+  },
+  "dependencies": {
+    "@remix-run/node": "^2.15.0",
+    "@remix-run/react": "^2.15.0",
+    "@remix-run/serve": "^2.15.0",
+    "isbot": "^5.1.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.15.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

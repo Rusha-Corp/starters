@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/rusha}
+    username: ${DATABASE_USERNAME:rusha}
+    password: ${DATABASE_PASSWORD:rusha}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

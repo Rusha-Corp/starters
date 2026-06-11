@@ -1,0 +1,60 @@
+# Local development — mirrors the production topology exactly.
+# Run: docker compose up --build
+#
+# Services:
+#   ui  → http://localhost:80    (static, nginx)
+#   api → http://localhost:3000  (Fastify)
+#   db  → localhost:5432         (PostgreSQL 16)
+
+services:
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    image: svelte-fastify-postgres-ui:dev
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./api
+    image: svelte-fastify-postgres-api:dev
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://rusha:rusha@db:5432/rusha
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=text
+    env_file:
+      - .env.example
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=rusha
+      - POSTGRES_PASSWORD=rusha
+      - POSTGRES_DB=rusha
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rusha"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:

@@ -1,0 +1,14 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "@fastify/cors": "^9.0.0",
+    "pg": "^8.12.0"
+  }
+}

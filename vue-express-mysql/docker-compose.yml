@@ -1,0 +1,62 @@
+# Local development — mirrors the production topology exactly.
+# Run: docker compose up --build
+#
+# Services:
+#   ui  → http://localhost:80    (static, nginx)
+#   api → http://localhost:3000  (Express)
+#   db  → localhost:3306         (MySQL 8)
+
+services:
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    image: vue-express-mysql-ui:dev
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./api
+    image: vue-express-mysql-api:dev
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=mysql://rusha:rusha@db:3306/rusha
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=text
+    env_file:
+      - .env.example
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  db:
+    image: mysql:8-debian
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rusha
+      - MYSQL_USER=rusha
+      - MYSQL_PASSWORD=rusha
+      - MYSQL_DATABASE=rusha
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u rusha --password=rusha"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  db_data:

@@ -1,0 +1,87 @@
+# Local development — mirrors the production topology exactly.
+# Run: docker compose up --build
+#
+# Services:
+#   ui    → http://localhost:80      (static, nginx)
+#   api   → http://localhost:8080   (Spring Boot)
+#   db    → localhost:5432          (PostgreSQL 16)
+#   queue → localhost:5672/15672   (RabbitMQ 3)
+
+services:
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    image: react-spring-boot-postgres-ui:dev
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./api
+    image: react-spring-boot-postgres-api:dev
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/rusha
+      - SPRING_DATASOURCE_USERNAME=rusha
+      - SPRING_DATASOURCE_PASSWORD=rusha
+      - SPRING_RABBITMQ_HOST=queue
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=rusha
+      - SPRING_RABBITMQ_PASSWORD=rusha
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=text
+    env_file:
+      - .env.example
+    depends_on:
+      db:
+        condition: service_healthy
+      queue:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=rusha
+      - POSTGRES_PASSWORD=rusha
+      - POSTGRES_DB=rusha
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rusha"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  queue:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=rusha
+      - RABBITMQ_DEFAULT_PASS=rusha
+    volumes:
+      - queue_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  db_data:
+  queue_data:

@@ -1,0 +1,49 @@
+# Rusha system manifest — checked into the repo root.
+# Rusha reads this file on every deploy to understand what to build and where.
+#
+# metadata is injected by Rusha at provisioning time — do not edit manually.
+apiVersion: rusha.io/v1
+kind: System
+metadata:
+  name: "{{ .SystemAlias }}"
+  project: "{{ .ProjectAlias }}"
+  org: "{{ .OrgAlias }}"
+spec:
+  template: vue-express-mysql
+  services:
+    - name: ui
+      type: static
+      internetFacing: true
+      vcs:
+        baseImage: node:20-alpine
+        buildCommand: "npm run build"
+        buildDir: "ui/dist"
+
+    - name: api
+      type: server
+      port: 3000
+      internetFacing: true
+      healthCheck:
+        path: /health
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+      vcs:
+        dockerfile: api/Dockerfile
+
+    - name: db
+      type: stateful
+      shared: true
+      port: 3306
+      image: mysql:8-debian
+      storage: 20Gi
+      healthCheck:
+        command: ["mysqladmin", "ping", "-h", "localhost"]
+        intervalSeconds: 10
+        timeoutSeconds: 5
+
+  environment:
+    - key: LOG_LEVEL
+      value: INFO
+    - key: LOG_FORMAT
+      value: text

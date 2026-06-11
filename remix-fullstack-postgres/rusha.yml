@@ -1,0 +1,41 @@
+# Rusha system manifest — checked into the repo root.
+# Rusha reads this file on every deploy to understand what to build and where.
+#
+# metadata is injected by Rusha at provisioning time — do not edit manually.
+apiVersion: rusha.io/v1
+kind: System
+metadata:
+  name: "{{ .SystemAlias }}"
+  project: "{{ .ProjectAlias }}"
+  org: "{{ .OrgAlias }}"
+spec:
+  template: remix-fullstack-postgres
+  services:
+    - name: app
+      type: server
+      port: 3000
+      internetFacing: true
+      healthCheck:
+        path: /health
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+      vcs:
+        dockerfile: Dockerfile
+
+    - name: db
+      type: stateful
+      shared: true
+      port: 5432
+      image: postgres:16
+      storage: 20Gi
+      healthCheck:
+        command: ["pg_isready", "-U", "rusha"]
+        intervalSeconds: 10
+        timeoutSeconds: 5
+
+  environment:
+    - key: LOG_LEVEL
+      value: INFO
+    - key: LOG_FORMAT
+      value: text
