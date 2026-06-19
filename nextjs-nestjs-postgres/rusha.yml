@@ -53,6 +53,20 @@ spec:
       image: redis:7-alpine
       storage: 1Gi
 
+    - name: prometheus
+      type: stateful
+      shared: true
+      port: 9090
+      image: prom/prometheus:v2.51.0
+      storage: 10Gi
+
+    - name: grafana
+      type: stateful
+      shared: true
+      port: 3000
+      image: grafana/grafana:10.4.2
+      storage: 1Gi
+
   environment:
     - key: LOG_LEVEL
       value: INFO
