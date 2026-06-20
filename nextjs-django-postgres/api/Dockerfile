@@ -18,6 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /root/.local /home/nonroot/.local
 ENV PATH=/home/nonroot/.local/bin:$PATH
+ENV HOME=/home/nonroot
 
 COPY --chown=nonroot:nonroot . .
 
