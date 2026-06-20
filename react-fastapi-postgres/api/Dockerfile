@@ -29,6 +29,7 @@ WORKDIR /app
 # Copy Python dependencies from builder
 COPY --from=builder /root/.local /home/appuser/.local
 ENV PATH=/home/appuser/.local/bin:$PATH
+ENV HOME=/home/appuser
 
 # Copy application code
 COPY --chown=appuser:appuser . .
