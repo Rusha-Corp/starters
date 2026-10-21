@@ -1,0 +1,18 @@
+apiVersion: rusha.io/v1
+kind: System
+metadata:
+  name: "{{ .SystemAlias }}"
+  project: "{{ .ProjectAlias }}"
+  org: "{{ .OrgAlias }}"
+spec:
+  pipelineMode: rusha_managed
+  services:
+    - name: app
+      type: server
+      port: 3000
+      internetFacing: true
+      vcs:
+        dockerfile: airbyte-dbt-iceberg-nessie-prefect/dagster/Dockerfile
+      resources:
+        cpu: "500m"
+        memory: "512Mi"
